@@ -1,7 +1,7 @@
 #lang setup/infotab
 
 (define name "png-image")
-(define scribblings '(("doc/manual.scrbl" ())))
+(define scribblings '(("doc/png-image.scrbl" ())))
 
 (define blurb '("Library to view and modify PNG chunks."))
 (define primary-file "main.rkt")
