@@ -9,11 +9,28 @@
          "base.rkt")
 (provide itxt-data->hash
          itxt-hash->data
+         itxt-set
          make-itxt-chunk
-         make-itxt-hash)
+         make-itxt-hash
+         ztxt-data->hash)
+
+; tEXt:
+; LENGTH
+; CHUNK TYPE: #"tEXt"
+; DATA - Keyword (1 - 79),
+;        Null Separator,
+;        Text (0 or more bytes)
+
+; zTXt:
+; LENGTH of compressed data
+; CHUNK TYPE: #"zTXt"
+; DATA - Keyword (1 - 79),
+;        Null Separator,
+;        Compression Method (1 byte) (currently only 0 is valid),
+;        Text (0 or more)
 
 ; iTXt:
-; LENGTH (of compressed data)
+; LENGTH of compressed(?) data
 ; CHUNK TYPE: #"iTXt"
 ; DATA - Keyword (1 - 79),
 ;        Null Separator,
@@ -53,7 +70,42 @@
                     (* #xEDB88320 (bitwise-and accum 1)))))
    #xFFFFFFFF))
 
-; reads an iTXt byte string and returns the uncompressed(?) data as a hash
+; reads a zTXt byte string and returns the uncompressed data in a hash
+(define/contract (ztxt-data->hash bstr)
+  (bytes? . -> . hash?)
+  (define bstr-in (open-input-bytes bstr))
+  (define type (peek-bytes 4 4 bstr-in))
+
+  (define kw
+    ; loop until we find \0
+    ; skip length and type
+    (let loop ([offset 8])
+      (define byte (peek-bytes 1 offset bstr-in))
+      (if (bytes=? byte #"\0")
+          (peek-bytes (- offset 8) 8 bstr-in)
+          (loop (add1 offset)))))
+  (define kw-len (bytes-length kw))
+
+  (define compression-method (peek-bytes 1 (+ 10 kw-len) bstr-in))
+
+  (define data (subbytes bstr
+                         (+ 12 kw-len)
+                         (- (bytes-length bstr) 4)))
+  (close-input-port bstr-in)
+  (hash 'keyword kw
+        'compression-method compression-method
+        'text (cond [(bytes=? compression-method #"\0")
+                     ; uncompress via inflate method
+                     (define compressed-in (open-input-bytes data))
+                     (define compressed-out (open-output-bytes))
+                     (inflate compressed-in compressed-out)
+                     (define uncompressed (get-output-bytes compressed-out))
+                     (close-input-port compressed-in)
+                     (close-output-port compressed-out)
+                     uncompressed]
+                    [else data])))
+
+; reads an iTXt byte string and returns the uncompressed(?) data in a hash
 (define/contract (itxt-data->hash bstr)
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
@@ -61,6 +113,7 @@
   
   (define kw
     ; loop until we find \0
+    ; skip length and type
     (let loop ([offset 8])
       (define byte (peek-bytes 1 offset bstr-in))
       (if (bytes=? byte #"\0")
@@ -104,6 +157,8 @@
                          (+ 13 kw-len ltag-len tkw-len)
                          ; and read until 4 bytes before the end (the crc32)
                          (- (bytes-length bstr) 4)))
+  ; can't forget to close all the ports
+  (close-input-port bstr-in)
   ; return a hash with all the data information
   (hash
    'keyword kw
@@ -120,7 +175,6 @@
           (define uncompressed (get-output-bytes compressed-out))
           (close-input-port compressed-in)
           (close-output-port compressed-out)
-          (close-input-port bstr-in)
           uncompressed]
          [else data])))
 
@@ -193,3 +247,18 @@
         'data (itxt-data->hash chunk)
         'length len
         'crc32 (subbytes chunk (- (bytes-length chunk) 4))))
+
+; takes a PNG hash and an iTXt hash
+; returns a new PNG hash with the iTXt hash added
+(define/contract (itxt-set png-hash itxt-hash keyword)
+  (hash? hash? string? . -> . hash?)
+  (cond [(hash-has-key? png-hash 'iTXt)
+         (define kw-bstr (string->bytes/utf-8 keyword))
+         (define itxt-lst
+           (for/list ([itxt (in-list (hash-ref png-hash 'iTXt))])
+             (define itxt-data-hash (hash-ref itxt 'data))
+             (if (bytes=? kw-bstr (hash-ref itxt-data-hash 'keyword))
+                 itxt-hash
+                 itxt)))
+         (hash-set png-hash 'iTXt itxt-lst)]
+        [else (hash-set png-hash 'iTXt (list itxt-hash))]))
