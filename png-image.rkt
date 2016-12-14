@@ -61,9 +61,14 @@
            (if (member type-sym multiples)
                (if (hash-has-key? hsh type-sym)
                    (append (hash-ref hsh type-sym)
-                           (if (member type-sym text-chunks)
-                               (list (make-itxt-hash (subbytes bstr 0 info-len)))
-                               (list info)))
+                           (case type-sym
+                             [(tEXt)
+                              (list (make-text-hash (subbytes bstr 0 info-len)))]
+                             [(zTXt)
+                              (list (make-ztxt-hash (subbytes bstr 0 info-len)))]
+                             [(iTXt)
+                              (list (make-itxt-hash (subbytes bstr 0 info-len)))]
+                             [else (list info)]))
                    (if (member type-sym text-chunks)
                        (list (make-itxt-hash (subbytes bstr 0 info-len)))
                        (list info)))
@@ -83,21 +88,33 @@
             (define val (hash-ref hsh key))
             (if (list? val)
                 (map (λ (h)
-                       (cond [(member key text-chunks)
-                              (define inner (hash-ref h 'data))
-                              (define itxt-chunk
-                                (make-itxt-chunk
-                                 (bytes->string/utf-8 (hash-ref inner 'keyword))
-                                 (bytes->string/utf-8 (hash-ref inner 'text))
-                                 (bytes->string/utf-8 (hash-ref inner 'language-tag))
-                                 (bytes->string/utf-8 (hash-ref inner 'translated-keyword))))
-                              (display itxt-chunk)]
-                             [else
-                              (printf "~a~a~a~a"
-                                      (number->bytes (hash-ref h 'length))
-                                      (hash-ref h 'type)
-                                      (hash-ref h 'data)
-                                      (hash-ref h 'crc32))]))
+                       (case key
+                         [(tEXt)
+                          (define inner (hash-ref h 'data))
+                          (display
+                           (make-text-chunk
+                            (bytes->string/latin-1 (hash-ref inner 'keyword))
+                            (bytes->string/latin-1 (hash-ref inner 'text))))]
+                         [(zTXt)
+                          (define inner (hash-ref h 'data))
+                          (display
+                           (make-ztxt-chunk
+                            (bytes->string/latin-1 (hash-ref inner 'keyword))
+                            (bytes->string/latin-1 (hash-ref inner 'text))))]
+                         [(iTXt)
+                          (define inner (hash-ref h 'data))
+                          (display
+                           (make-itxt-chunk
+                            (bytes->string/utf-8 (hash-ref inner 'keyword))
+                            (bytes->string/utf-8 (hash-ref inner 'text))
+                            (bytes->string/utf-8 (hash-ref inner 'language-tag))
+                            (bytes->string/utf-8 (hash-ref inner 'translated-keyword))))]
+                         [else
+                          (printf "~a~a~a~a"
+                                  (number->bytes (hash-ref h 'length))
+                                  (hash-ref h 'type)
+                                  (hash-ref h 'data)
+                                  (hash-ref h 'crc32))]))
                      val)
                 (printf "~a~a~a~a"
                         (number->bytes (hash-ref val 'length))
