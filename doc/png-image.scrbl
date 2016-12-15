@@ -23,7 +23,7 @@
   a list of hashes. In txt chunks, if the text has been deflated, it will be
   inflated in this step.
 
-  The chunk hashes have the keys @racket['(type data length crc)].
+  The chunk hashes have the keys @racket['(type data length crc32)].
 }
 
 @defproc[(hash->png (hsh hash?)) bytes?]{
