@@ -69,11 +69,18 @@
                              [(iTXt)
                               (list (make-itxt-hash (subbytes bstr 0 info-len)))]
                              [else (list info)]))
-                   (if (member type-sym text-chunks)
-                       (list (make-itxt-hash (subbytes bstr 0 info-len)))
-                       (list info)))
+                   (case type-sym
+                     [(tEXt)
+                      (list (make-text-hash (subbytes bstr 0 info-len)))]
+                     [(zTXt)
+                      (list (make-ztxt-hash (subbytes bstr 0 info-len)))]
+                     [(iTXt)
+                      (list (make-itxt-hash (subbytes bstr 0 info-len)))]
+                     [else (list info)]))
                info))
-         (png->hash (subbytes bstr info-len) (hash-set hsh type-sym accum))]))
+         (if (eq? type-sym 'IEND)
+             (png->hash #"" (hash-set hsh type-sym accum))
+             (png->hash (subbytes bstr info-len) (hash-set hsh type-sym accum)))]))
 
 ; return a hash to a byte string
 (define/contract (hash->png hsh)

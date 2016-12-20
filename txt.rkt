@@ -84,7 +84,6 @@
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
   (define type (peek-bytes 4 4 bstr-in))
-
   (define kw
     ; loop until we find \0
     ; skip length and type
@@ -96,9 +95,9 @@
   (define kw-len (bytes-length kw))
 
   (define data (subbytes bstr
-                         (+ 10 kw-len)
+                         (+ 9 kw-len)
                          (- (bytes-length bstr) 4)))
-
+  
   (close-input-port bstr-in)
 
   (hash 'keyword kw
@@ -109,7 +108,6 @@
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
   (define type (peek-bytes 4 4 bstr-in))
-
   (define kw
     ; loop until we find \0
     ; skip length and type
@@ -144,7 +142,6 @@
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
   (define type (peek-bytes 4 4 bstr-in))
-  
   (define kw
     ; loop until we find \0
     ; skip length and type
