@@ -163,7 +163,8 @@
     ; loop until we find \0
     (let loop ([offset (+ 11 kw-len)])
       (define byte (peek-bytes 1 offset bstr-in))
-      (cond [(bytes=? byte #"\0")
+      (cond [(eof-object? byte) #""]
+            [(bytes=? byte #"\0")
              (define bstrlen (- offset (+ 11 kw-len)))
              (if (= bstrlen 0)
                  #"" ; language tag has been omitted
@@ -177,7 +178,8 @@
     ; loop until we fine \0
     (let loop ([offset (+ 12 kw-len ltag-len)])
       (define byte (peek-bytes 1 offset bstr-in))
-      (cond [(bytes=? byte #"\0")
+      (cond [(eof-object? byte) #""]
+            [(bytes=? byte #"\0")
              (define bstrlen (- offset (+ 12 kw-len ltag-len)))
              (if (= bstrlen 0)
                  #"" ; translated keywork omitted
