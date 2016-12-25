@@ -262,14 +262,14 @@
   (define kw (string->bytes/latin-1 keyword))
   (define bstr (string->bytes/latin-1 str))
   (define info+data
-    (bytes-append kw
+    (bytes-append type
+                  kw
                   #"\0"
                   bstr))
   (with-output-to-bytes
       (λ ()
-        (printf "~a~a~a~a"
+        (printf "~a~a~a"
                 (number->bytes (bytes-length info+data))
-                type
                 info+data
                 (number->bytes (bytes-crc32 info+data))))))
 
@@ -292,15 +292,15 @@
       (close-output-port data-out)
       compressed))
   (define info+data
-    (bytes-append kw
+    (bytes-append type
+                  kw
                   #"\0"
                   compression-method
                   data))
   (with-output-to-bytes
       (λ ()
-        (printf "~a~a~a~a"
+        (printf "~a~a~a"
                 (number->bytes (bytes-length info+data))
-                type
                 info+data
                 (number->bytes (bytes-crc32 info+data))))))
 
@@ -330,7 +330,8 @@
            (close-output-port data-out)
            compressed]))
   (define info+data
-    (bytes-append kw
+    (bytes-append type
+                  kw
                   #"\0"
                   compression-flag
                   compression-method
@@ -339,15 +340,12 @@
                   tkw-bstr
                   #"\0"
                   data))
-  (define itxt-bstr
-    (with-output-to-bytes
-        (λ ()
-          (printf "~a~a~a~a"
-                  (number->bytes (bytes-length info+data))
-                  type
-                  info+data
-                  (number->bytes (bytes-crc32 info+data))))))
-  itxt-bstr)
+  (with-output-to-bytes
+      (λ ()
+        (printf "~a~a~a"
+                (number->bytes (bytes-length info+data))
+                info+data
+                (number->bytes (bytes-crc32 info+data))))))
 
 ; reads a complete tEXt chunk byte string and returns a hash of the chunk
 ; with a nested hash for the data
