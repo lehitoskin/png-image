@@ -262,16 +262,16 @@
   (define kw (string->bytes/latin-1 keyword))
   (define bstr (string->bytes/latin-1 str))
   (define info+data
-    (bytes-append type
-                  kw
+    (bytes-append kw
                   #"\0"
                   bstr))
   (with-output-to-bytes
       (λ ()
-        (printf "~a~a~a"
+        (printf "~a~a~a~a"
                 (number->bytes (bytes-length info+data))
+                type
                 info+data
-                (number->bytes (bytes-crc32 info+data))))))
+                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
 
 ; reads strings and returns a zTXt chunk byte string with compressed data
 ; creates a complete zTXt chunk
@@ -292,17 +292,17 @@
       (close-output-port data-out)
       compressed))
   (define info+data
-    (bytes-append type
-                  kw
+    (bytes-append kw
                   #"\0"
                   compression-method
                   data))
   (with-output-to-bytes
       (λ ()
-        (printf "~a~a~a"
+        (printf "~a~a~a~a"
                 (number->bytes (bytes-length info+data))
+                type
                 info+data
-                (number->bytes (bytes-crc32 info+data))))))
+                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
 
 ; reads strings and returns an iTXt chunk byte string with compressed(?) data
 ; creates a complete iTXt chunk
@@ -330,8 +330,7 @@
            (close-output-port data-out)
            compressed]))
   (define info+data
-    (bytes-append type
-                  kw
+    (bytes-append kw
                   #"\0"
                   compression-flag
                   compression-method
@@ -342,10 +341,11 @@
                   data))
   (with-output-to-bytes
       (λ ()
-        (printf "~a~a~a"
+        (printf "~a~a~a~a"
                 (number->bytes (bytes-length info+data))
+                type
                 info+data
-                (number->bytes (bytes-crc32 info+data))))))
+                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
 
 ; reads a complete tEXt chunk byte string and returns a hash of the chunk
 ; with a nested hash for the data
