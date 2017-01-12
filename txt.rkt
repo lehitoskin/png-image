@@ -83,7 +83,6 @@
 (define/contract (text-data->hash bstr)
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
-  (define type (peek-bytes 4 4 bstr-in))
   (define kw
     ; loop until we find \0
     ; skip length and type
@@ -107,7 +106,6 @@
 (define/contract (ztxt-data->hash bstr)
   (bytes? . -> . hash?)
   (define bstr-in (open-input-bytes bstr))
-  (define type (peek-bytes 4 4 bstr-in))
   (define kw
     ; loop until we find \0
     ; skip length and type
@@ -118,17 +116,17 @@
           (loop (add1 offset)))))
   (define kw-len (bytes-length kw))
 
-  (define compression-method (peek-bytes 1 (+ 10 kw-len) bstr-in))
+  (define compression-method (peek-bytes 1 (+ 9 kw-len) bstr-in))
 
   (define data (subbytes bstr
-                         (+ 12 kw-len)
+                         (+ 10 kw-len)
                          (- (bytes-length bstr) 4)))
   (close-input-port bstr-in)
   (hash 'keyword kw
         'compression-method compression-method
         'text (cond [(bytes=? compression-method #"\0")
                      ; uncompress via inflate method
-                     (define compressed-in (open-input-bytes data))
+                     (define compressed-in (open-input-bytes (subbytes data 2)))
                      (define compressed-out (open-output-bytes))
                      (inflate compressed-in compressed-out)
                      (define uncompressed (get-output-bytes compressed-out))
@@ -202,7 +200,7 @@
    'text
    (cond [(bytes=? compression-flag #"\1")
           ; inflate the compressed data
-          (define compressed-in (open-input-bytes data))
+          (define compressed-in (open-input-bytes (subbytes data 2)))
           (define compressed-out (open-output-bytes))
           (inflate compressed-in compressed-out)
           (define uncompressed (get-output-bytes compressed-out))
@@ -232,7 +230,9 @@
                        (define uncompressed-in (open-input-bytes (hash-ref inner 'text)))
                        (define uncompressed-out (open-output-bytes))
                        (deflate uncompressed-in uncompressed-out)
-                       (define compressed (get-output-bytes uncompressed-out))
+                       (define compressed
+                         (bytes-append (bytes #x78 #x9c)
+                                       (get-output-bytes uncompressed-out)))
                        (close-input-port uncompressed-in)
                        (close-output-port uncompressed-out)
                        compressed]
@@ -287,7 +287,9 @@
     (let ([data-in (open-input-bytes bstr)]
           [data-out (open-output-bytes)])
       (deflate data-in data-out)
-      (define compressed (get-output-bytes data-out))
+      (define compressed
+        (bytes-append (bytes #x78 #x9c)
+                      (get-output-bytes data-out)))
       (close-input-port data-in)
       (close-output-port data-out)
       compressed))
@@ -325,7 +327,9 @@
            (define data-in (open-input-bytes bstr))
            (define data-out (open-output-bytes))
            (deflate data-in data-out)
-           (define compressed (get-output-bytes data-out))
+           (define compressed
+             (bytes-append (bytes #x78 #x9c)
+                           (get-output-bytes data-out)))
            (close-input-port data-in)
            (close-output-port data-out)
            compressed]))
