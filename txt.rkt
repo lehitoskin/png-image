@@ -117,7 +117,7 @@ significant-byte first (network) order.
     ; skip length and type
     (let loop ([offset 8])
       (define byte (peek-bytes 1 offset bstr-in))
-      (if (bytes=? byte #"\0")
+      (if (bytes=? byte (bytes 0))
           (peek-bytes (- offset 8) 8 bstr-in)
           (loop (add1 offset)))))
   (define kw-len (bytes-length kw))
@@ -140,7 +140,7 @@ significant-byte first (network) order.
     ; skip length and type
     (let loop ([offset 8])
       (define byte (peek-bytes 1 offset bstr-in))
-      (if (bytes=? byte #"\0")
+      (if (bytes=? byte (bytes 0))
           (peek-bytes (- offset 8) 8 bstr-in)
           (loop (add1 offset)))))
   (define kw-len (bytes-length kw))
@@ -153,7 +153,7 @@ significant-byte first (network) order.
   (close-input-port bstr-in)
   (hash 'keyword kw
         'compression-method compression-method
-        'text (cond [(bytes=? compression-method #"\0")
+        'text (cond [(bytes=? compression-method (bytes 0))
                      ; uncompress via inflate method
                      (define compressed-in (open-input-bytes (subbytes data 2)))
                      (define compressed-out (open-output-bytes))
@@ -174,7 +174,7 @@ significant-byte first (network) order.
     ; skip length and type
     (let loop ([offset 8])
       (define byte (peek-bytes 1 offset bstr-in))
-      (if (bytes=? byte #"\0")
+      (if (bytes=? byte (bytes 0))
           (peek-bytes (- offset 8) 8 bstr-in)
           (loop (add1 offset)))))
   (define kw-len (bytes-length kw))
@@ -188,7 +188,7 @@ significant-byte first (network) order.
     (let loop ([offset (+ 11 kw-len)])
       (define byte (peek-bytes 1 offset bstr-in))
       (cond [(eof-object? byte) #""]
-            [(bytes=? byte #"\0")
+            [(bytes=? byte (bytes 0))
              (define bstrlen (- offset (+ 11 kw-len)))
              (if (= bstrlen 0)
                  #"" ; language tag has been omitted
@@ -203,7 +203,7 @@ significant-byte first (network) order.
     (let loop ([offset (+ 12 kw-len ltag-len)])
       (define byte (peek-bytes 1 offset bstr-in))
       (cond [(eof-object? byte) #""]
-            [(bytes=? byte #"\0")
+            [(bytes=? byte (bytes 0))
              (define bstrlen (- offset (+ 12 kw-len ltag-len)))
              (if (= bstrlen 0)
                  #"" ; translated keywork omitted
@@ -227,8 +227,8 @@ significant-byte first (network) order.
    'language-tag language-tag
    'translated-keyword translated-kw
    'text
-   (cond [(and (bytes=? compression-flag #"\1")
-               (bytes=? compression-method "\0"))
+   (cond [(and (bytes=? compression-flag (bytes 1))
+               (bytes=? compression-method (bytes 0)))
           ; inflate the compressed data
           (define compressed-in (open-input-bytes (subbytes data 2)))
           (define compressed-out (open-output-bytes))
@@ -244,7 +244,7 @@ significant-byte first (network) order.
   (hash? . -> . bytes?)
   (define inner (hash-ref hsh 'data))
   (bytes-append (hash-ref inner 'keyword)
-                #"\0"
+                (bytes 0)
                 (hash-ref inner 'text)))
 
 ; take the ztxt-data hash and returns a zTXt byte string
@@ -254,11 +254,11 @@ significant-byte first (network) order.
   (define inner (hash-ref hsh 'data))
   ; deflate the text data
   (bytes-append (hash-ref inner 'keyword)
-                #"\0"
+                (bytes 0)
                 (hash-ref hsh 'compression-method)
                 (cond
                   ; we want compression and we're using DEFLATE
-                  [(bytes=? (hash-ref hsh 'compression-method) #"\0")
+                  [(bytes=? (hash-ref hsh 'compression-method) (bytes 0))
                    (define bstr (hash-ref inner 'text))
                    (define uncompressed-in (open-input-bytes bstr))
                    (define uncompressed-out (open-output-bytes))
@@ -278,19 +278,19 @@ significant-byte first (network) order.
   (hash? . -> . bytes?)
   (define inner (hash-ref hsh 'data))
   (bytes-append (hash-ref inner 'keyword)
-                #"\0"
+                (bytes 0)
                 (hash-ref inner 'compression-flag)
                 (hash-ref inner 'compression-method)
                 (hash-ref inner 'language-tag)
-                #"\0"
+                (bytes 0)
                 (hash-ref inner 'translated-keyword)
-                #"\0"
+                (bytes 0)
                 (cond
                   ; we don't want compression, return the text
-                  [(bytes=? (hash-ref inner 'compression-flag) #"\0")
+                  [(bytes=? (hash-ref inner 'compression-flag) (bytes 0))
                    (hash-ref inner 'text)]
                   ; we want compression and we're using DEFLATE
-                  [(and (bytes=? (hash-ref inner 'compression-flag) #"\1")
+                  [(and (bytes=? (hash-ref inner 'compression-flag) (bytes 1))
                         (bytes=? (hash-ref inner 'compression-method) "\0"))
                    (define bstr (hash-ref inner 'text))
                    (define uncompressed-in (open-input-bytes bstr))
@@ -317,7 +317,7 @@ significant-byte first (network) order.
   (define bstr (string->bytes/latin-1 str))
   (define info+data
     (bytes-append kw
-                  #"\0"
+                  (bytes 0)
                   bstr))
   (with-output-to-bytes
       (λ ()
@@ -350,7 +350,7 @@ significant-byte first (network) order.
       compressed))
   (define info+data
     (bytes-append kw
-                  #"\0"
+                  (bytes 0)
                   compression-method
                   data))
   (with-output-to-bytes
@@ -373,11 +373,11 @@ significant-byte first (network) order.
   (define ltag-bstr (string->bytes/utf-8 language-tag))
   (define tkw-bstr (string->bytes/utf-8 translated-kw))
   (define compression-flag (if (>= (bytes-length bstr) 1024)
-                               #"\1"
-                               #"\0"))
+                               (bytes 1)
+                               (bytes 0)))
   (define compression-method (bytes 0))
   (define data
-    (cond [(bytes=? compression-flag #"\0") bstr]
+    (cond [(bytes=? compression-flag (bytes 0)) bstr]
           [else
            (define data-in (open-input-bytes bstr))
            (define data-out (open-output-bytes))
@@ -391,13 +391,13 @@ significant-byte first (network) order.
            compressed]))
   (define info+data
     (bytes-append kw
-                  #"\0"
+                  (bytes 0)
                   compression-flag
                   compression-method
                   ltag-bstr
-                  #"\0"
+                  (bytes 0)
                   tkw-bstr
-                  #"\0"
+                  (bytes 0)
                   data))
   (with-output-to-bytes
       (λ ()
