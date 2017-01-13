@@ -79,6 +79,35 @@
                     (* #xEDB88320 (bitwise-and accum 1)))))
    #xFFFFFFFF))
 
+#|
+https://www.ietf.org/rfc/rfc1950.txt
+
+Adler-32 is composed of two sums accumulated per byte: s1 is
+the sum of all bytes, s2 is the sum of all s1 values. Both sums
+are done modulo 65521. s1 is initialized to 1, s2 to zero.  The
+Adler-32 checksum is stored as s2*65536 + s1 in most-
+significant-byte first (network) order.
+|#
+(define (bytes-adler32 bstr)
+  (define ADLER 65521)
+  (define-values (s1 s2)
+    (for/fold ([s1 1]
+               [s2 0])
+              ([bits (in-bytes bstr)])
+      (define a (modulo (+ s1 bits) ADLER))
+      (define b (modulo (+ s2 a) ADLER))
+      (values a b)))
+  ; (s2 << 16) | s1
+  (bitwise-ior (arithmetic-shift s2 16) s1))
+
+; different from number->bytes in base.rkt because with that we need a specific
+; width, while with this function we don't particularly care about the width so
+; long as it has an even number of digits so it can be processed by
+; hex-string->bytes
+(define (num->bstr num)
+  (define hex (number->string num 16))
+  (hex-string->bytes (if (even? (string-length hex)) hex (string-append "0" hex))))
+
 ; reads a tEXt bye string and returns the data in a hash
 (define/contract (text-data->hash bstr)
   (bytes? . -> . hash?)
@@ -198,7 +227,8 @@
    'language-tag language-tag
    'translated-keyword translated-kw
    'text
-   (cond [(bytes=? compression-flag #"\1")
+   (cond [(and (bytes=? compression-flag #"\1")
+               (bytes=? compression-method "\0"))
           ; inflate the compressed data
           (define compressed-in (open-input-bytes (subbytes data 2)))
           (define compressed-out (open-output-bytes))
@@ -226,17 +256,22 @@
   (bytes-append (hash-ref inner 'keyword)
                 #"\0"
                 (hash-ref hsh 'compression-method)
-                (cond [(bytes=? (hash-ref hsh 'compression-method) #"\0")
-                       (define uncompressed-in (open-input-bytes (hash-ref inner 'text)))
-                       (define uncompressed-out (open-output-bytes))
-                       (deflate uncompressed-in uncompressed-out)
-                       (define compressed
-                         (bytes-append (bytes #x78 #x9c)
-                                       (get-output-bytes uncompressed-out)))
-                       (close-input-port uncompressed-in)
-                       (close-output-port uncompressed-out)
-                       compressed]
-                      [else (hash-ref inner 'text)])))
+                (cond
+                  ; we want compression and we're using DEFLATE
+                  [(bytes=? (hash-ref hsh 'compression-method) #"\0")
+                   (define bstr (hash-ref inner 'text))
+                   (define uncompressed-in (open-input-bytes bstr))
+                   (define uncompressed-out (open-output-bytes))
+                   (deflate uncompressed-in uncompressed-out)
+                   (define compressed
+                     (bytes-append (bytes #x78 #x9c)
+                                   (get-output-bytes uncompressed-out)
+                                   (num->bstr (bytes-adler32 bstr))))
+                   (close-input-port uncompressed-in)
+                   (close-output-port uncompressed-out)
+                   compressed]
+                  ; we have no idea what's going on, just return the text
+                  [else (hash-ref inner 'text)])))
 
 ; take the itxt-data hash and returns an iTXt byte string
 (define/contract (itxt-hash->data hsh)
@@ -250,7 +285,26 @@
                 #"\0"
                 (hash-ref inner 'translated-keyword)
                 #"\0"
-                (hash-ref inner 'text)))
+                (cond
+                  ; we don't want compression, return the text
+                  [(bytes=? (hash-ref inner 'compression-flag) #"\0")
+                   (hash-ref inner 'text)]
+                  ; we want compression and we're using DEFLATE
+                  [(and (bytes=? (hash-ref inner 'compression-flag) #"\1")
+                        (bytes=? (hash-ref inner 'compression-method) "\0"))
+                   (define bstr (hash-ref inner 'text))
+                   (define uncompressed-in (open-input-bytes bstr))
+                   (define uncompressed-out (open-output-bytes))
+                   (deflate uncompressed-in uncompressed-out)
+                   (define compressed
+                     (bytes-append (bytes #x78 #x9c)
+                                   (get-output-bytes uncompressed-out)
+                                   (num->bstr (bytes-adler32 bstr))))
+                   (close-input-port uncompressed-in)
+                   (close-output-port uncompressed-out)
+                   compressed]
+                  ; we have no idea what's going on, just return the text
+                  [else (hash-ref inner 'text)])))
 
 ; reads strings and returns a tEXt chunk byte string
 ; creates a complete tEXt chunk
@@ -289,7 +343,8 @@
       (deflate data-in data-out)
       (define compressed
         (bytes-append (bytes #x78 #x9c)
-                      (get-output-bytes data-out)))
+                      (get-output-bytes data-out)
+                      (num->bstr (bytes-adler32 bstr))))
       (close-input-port data-in)
       (close-output-port data-out)
       compressed))
@@ -329,7 +384,8 @@
            (deflate data-in data-out)
            (define compressed
              (bytes-append (bytes #x78 #x9c)
-                           (get-output-bytes data-out)))
+                           (get-output-bytes data-out)
+                           (num->bstr (bytes-adler32 bstr))))
            (close-input-port data-in)
            (close-output-port data-out)
            compressed]))
@@ -391,27 +447,35 @@
   (cond [(hash-has-key? png-hash 'tEXt)
          (define kw-bstr (string->bytes/latin-1 keyword))
          (define text-lst
+           ; if we already have the kw, replace it
            (for/list ([text (in-list (hash-ref png-hash 'tEXt))])
              (define text-data-hash (hash-ref text 'data))
              (if (bytes=? kw-bstr (hash-ref text-data-hash 'keyword))
                  text-hash
                  text)))
-         (hash-set png-hash 'tEXt text-lst)]
+         ; make sure the tEXt hash is in the list
+         (if (member text-hash text-lst)
+             (hash-set png-hash 'tEXt text-lst)
+             (hash-set png-hash 'tEXt (append text-lst (list text-hash))))]
         [else (hash-set png-hash 'tEXt (list text-hash))]))
 
 ; takes a PNG hash and a zTXt hash
-; returns a new PNG hash with the iTXt hash added
+; returns a new PNG hash with the zTXt hash added
 (define/contract (ztxt-set png-hash ztxt-hash keyword)
   (hash? hash? string? . -> . hash?)
   (cond [(hash-has-key? png-hash 'zTXt)
          (define kw-bstr (string->bytes/latin-1 keyword))
          (define ztxt-lst
+           ; if we already have the kw, replace it
            (for/list ([ztxt (in-list (hash-ref png-hash 'zTXt))])
              (define ztxt-data-hash (hash-ref ztxt 'data))
              (if (bytes=? kw-bstr (hash-ref ztxt-data-hash 'keyword))
                  ztxt-hash
                  ztxt)))
-         (hash-set png-hash 'zTXt ztxt-lst)]
+         ; make sure the zTXt hash is in the list
+         (if (member ztxt-hash ztxt-lst)
+             (hash-set png-hash 'zTXt ztxt-lst)
+             (hash-set png-hash 'zTXt (append ztxt-lst (list ztxt-hash))))]
         [else (hash-set png-hash 'zTXt (list ztxt-hash))]))
 
 ; takes a PNG hash and an iTXt hash
@@ -421,10 +485,14 @@
   (cond [(hash-has-key? png-hash 'iTXt)
          (define kw-bstr (string->bytes/utf-8 keyword))
          (define itxt-lst
+           ; if we already have the kw, replace it
            (for/list ([itxt (in-list (hash-ref png-hash 'iTXt))])
              (define itxt-data-hash (hash-ref itxt 'data))
              (if (bytes=? kw-bstr (hash-ref itxt-data-hash 'keyword))
                  itxt-hash
                  itxt)))
-         (hash-set png-hash 'iTXt itxt-lst)]
+         ; make sure the iTXt hash is in the list
+         (if (member itxt-hash itxt-lst)
+             (hash-set png-hash 'iTXt itxt-lst)
+             (hash-set png-hash 'iTXt (append itxt-lst (list itxt-hash))))]
         [else (hash-set png-hash 'iTXt (list itxt-hash))]))
