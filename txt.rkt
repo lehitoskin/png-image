@@ -322,10 +322,10 @@ significant-byte first (network) order.
   (with-output-to-bytes
       (λ ()
         (printf "~a~a~a~a"
-                (number->bytes (bytes-length info+data))
+                (integer->integer-bytes (bytes-length info+data) 4 #f #t)
                 type
                 info+data
-                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
+                (integer->integer-bytes (bytes-crc32 (bytes-append type info+data)) 4 #f #t)))))
 
 ; reads strings and returns a zTXt chunk byte string with compressed data
 ; creates a complete zTXt chunk
@@ -356,10 +356,10 @@ significant-byte first (network) order.
   (with-output-to-bytes
       (λ ()
         (printf "~a~a~a~a"
-                (number->bytes (bytes-length info+data))
+                (integer->integer-bytes (bytes-length info+data) 4 #f #t)
                 type
                 info+data
-                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
+                (integer->integer-bytes (bytes-crc32 (bytes-append type info+data)) 4 #f #t)))))
 
 ; reads strings and returns an iTXt chunk byte string with compressed(?) data
 ; creates a complete iTXt chunk
@@ -402,17 +402,17 @@ significant-byte first (network) order.
   (with-output-to-bytes
       (λ ()
         (printf "~a~a~a~a"
-                (number->bytes (bytes-length info+data))
+                (integer->integer-bytes (bytes-length info+data) 4 #f #t)
                 type
                 info+data
-                (number->bytes (bytes-crc32 (bytes-append type info+data)))))))
+                (integer->integer-bytes (bytes-crc32 (bytes-append type info+data)) 4 #f #t)))))
 
 ; reads a complete tEXt chunk byte string and returns a hash of the chunk
 ; with a nested hash for the data
 ; creates a complete tEXt hash
 (define/contract (make-text-hash chunk)
   (bytes? . -> . hash?)
-  (define len (bytes->number (subbytes chunk 0 4)))
+  (define len (integer-bytes->integer (subbytes chunk 0 4) #f #t))
   (hash 'type #"tEXt"
         'data (text-data->hash chunk)
         'length len
@@ -423,7 +423,7 @@ significant-byte first (network) order.
 ; creates a complete zTXt hash
 (define/contract (make-ztxt-hash chunk)
   (bytes? . -> . hash?)
-  (define len (bytes->number (subbytes chunk 0 4)))
+  (define len (integer-bytes->integer (subbytes chunk 0 4) #f #t))
   (hash 'type #"zTXt"
         'data (ztxt-data->hash chunk)
         'length len
@@ -434,7 +434,7 @@ significant-byte first (network) order.
 ; creates a complete iTXt hash
 (define/contract (make-itxt-hash chunk)
   (bytes? . -> . hash?)
-  (define len (bytes->number (subbytes chunk 0 4)))
+  (define len (integer-bytes->integer (subbytes chunk 0 4) #f #t))
   (hash 'type #"iTXt"
         'data (itxt-data->hash chunk)
         'length len

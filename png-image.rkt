@@ -1,11 +1,7 @@
 #lang racket/base
 ; png-image.rkt
-(require file/gunzip
-         file/gzip
-         file/sha1
-         racket/contract
+(require racket/contract
          racket/file
-         racket/format
          racket/port
          "base.rkt"
          "txt.rkt")
@@ -31,7 +27,7 @@
 ; takes a byte string and returns a hash with the chunk information
 (define (chunk-info bstr)
   (define in-port (open-input-bytes bstr))
-  (define data-len (bytes->number (peek-bytes 4 0 in-port)))
+  (define data-len (integer-bytes->integer (peek-bytes 4 0 in-port) #f #t))
   (define type (peek-bytes 4 4 in-port))
   (define data (peek-bytes data-len 8 in-port))
   (define crc32 (peek-bytes 4 (+ 8 data-len) in-port))
@@ -118,13 +114,13 @@
                             (bytes->string/utf-8 (hash-ref inner 'translated-keyword))))]
                          [else
                           (printf "~a~a~a~a"
-                                  (number->bytes (hash-ref h 'length))
+                                  (integer->integer-bytes (hash-ref h 'length) 4 #f #t)
                                   (hash-ref h 'type)
                                   (hash-ref h 'data)
                                   (hash-ref h 'crc32))]))
                      val)
                 (printf "~a~a~a~a"
-                        (number->bytes (hash-ref val 'length))
+                        (integer->integer-bytes (hash-ref val 'length) 4 #f #t)
                         (hash-ref val 'type)
                         (hash-ref val 'data)
                         (hash-ref val 'crc32))))))))
