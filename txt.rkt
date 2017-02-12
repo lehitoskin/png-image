@@ -4,10 +4,10 @@
          file/gzip
          file/sha1
          racket/contract
-         racket/format
-         racket/port
-         "base.rkt")
-(provide itxt-data->hash
+         racket/port)
+(provide bytes-crc32
+         bytes-adler32
+         itxt-data->hash
          itxt-hash->data
          itxt-set
          make-itxt-chunk
