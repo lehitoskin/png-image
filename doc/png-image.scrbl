@@ -34,22 +34,20 @@
   be deflated if it exceeds 1024 bytes.
 }
 
-@defmodule[png-image/txt]{
-  @racketmodname[png-image/txt] provides the following procedures.
-   
-  tEXt data hashes have the keys @racket['(keyword text)].
-  
-  zTXt data hashes have the keys @racket['(keyword compression-method text)].
-  
-  iTXt data hashes have the keys @racket['(keyword
+About text chunks:
+
+* tEXt data hashes have the keys @racket['(keyword text)].
+
+* zTXt data hashes have the keys @racket['(keyword compression-method text)].
+
+* iTXt data hashes have the keys @racket['(keyword
                                            compression-flag
                                            compression-method
                                            language-tag
                                            translated-keyword
                                            text)].
-  
-  The only valid compression-method value is @racket[#"\0"].
-}
+
+* The only valid compression-method value is @racket[#"\0"].
 
 @deftogether[(@defproc[(text-data->hash [bstr bytes?]) hash?]
               @defproc[(ztxt-data->hash [bstr bytes?]) hash?]
