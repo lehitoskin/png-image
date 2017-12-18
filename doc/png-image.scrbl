@@ -2,7 +2,7 @@
 @; png-image.scrbl
 @(require (for-label racket/base racket/contract "../main.rkt"))
 
-@title{@bold{png-image}: Library to view and modify PNG chunks.}
+@title{png-image: Library to view and modify PNG chunks.}
 @author{Lehi Toskin}
 
 @defmodule[png-image]{
