@@ -39,7 +39,7 @@
                       hIST
                       tRNS
                       ; ancillary chunks, before IDAT
-                      pHYS
+                      pHYs
                       sPLT
                       ; ancillary chunks, no special order
                       tIME
